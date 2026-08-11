@@ -1,11 +1,10 @@
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import User from '../models/User.js';
-import Model from '../models/Model.js';
-import PromptTemplate from '../models/PromptTemplate.js';
+import User from '../models/User';
+import Model from '../models/Model';
+import PromptTemplate from '../models/PromptTemplate';
 import bcrypt from 'bcryptjs';
 
-let mongoMemoryServer: MongoMemoryServer | null = null;
+let mongoMemoryServer: any = null;
 
 export const connectDB = async (): Promise<void> => {
   const customUri = process.env.MONGODB_URI || 'mongodb+srv://max11:c8g2aijs6jQjbb69@playbeat.umqpdyx.mongodb.net/?appName=playbeat';
@@ -25,6 +24,7 @@ export const connectDB = async (): Promise<void> => {
         console.log('Connected to local MongoDB.');
       } catch (localErr) {
         console.log('Local MongoDB not running. Initializing in-memory MongoDB server...');
+        const { MongoMemoryServer } = await import('mongodb-memory-server');
         mongoMemoryServer = await MongoMemoryServer.create();
         const memoryUri = mongoMemoryServer.getUri();
         await mongoose.connect(memoryUri);
@@ -36,6 +36,7 @@ export const connectDB = async (): Promise<void> => {
   } catch (error) {
     console.error('MongoDB connection error, starting fallback memory server:', error);
     try {
+      const { MongoMemoryServer } = await import('mongodb-memory-server');
       mongoMemoryServer = await MongoMemoryServer.create();
       const memoryUri = mongoMemoryServer.getUri();
       await mongoose.connect(memoryUri);
