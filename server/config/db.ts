@@ -7,6 +7,10 @@ import bcrypt from 'bcryptjs';
 let mongoMemoryServer: any = null;
 
 export const connectDB = async (): Promise<void> => {
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
   const customUri = process.env.MONGODB_URI || 'mongodb+srv://max11:c8g2aijs6jQjbb69@playbeat.umqpdyx.mongodb.net/?appName=playbeat';
 
   try {

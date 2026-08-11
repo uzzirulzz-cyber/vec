@@ -7,7 +7,7 @@ import { AuthRequest } from '../middleware/authMiddleware';
 const JWT_SECRET = process.env.JWT_SECRET || 'vectorengine_jwt_secret_key_2026_change_in_prod';
 
 export const register = async (req: Request, res: Response) => {
-  const { name, email, password } = req.body;
+  const { name, email, password } = req.body || {};
 
   if (!name || !email || !password) {
     return res.status(400).json({
@@ -16,7 +16,10 @@ export const register = async (req: Request, res: Response) => {
     });
   }
 
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanName = String(name).trim();
+
+  const existingUser = await User.findOne({ email: cleanEmail });
   if (existingUser) {
     return res.status(400).json({
       success: false,
@@ -26,8 +29,8 @@ export const register = async (req: Request, res: Response) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await User.create({
-    name,
-    email: email.toLowerCase(),
+    name: cleanName,
+    email: cleanEmail,
     passwordHash,
     role: 'user',
   });
@@ -54,7 +57,7 @@ export const register = async (req: Request, res: Response) => {
 };
 
 export const login = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
 
   if (!email || !password) {
     return res.status(400).json({
@@ -63,7 +66,8 @@ export const login = async (req: Request, res: Response) => {
     });
   }
 
-  const user = await User.findOne({ email: email.toLowerCase() });
+  const cleanEmail = String(email).trim().toLowerCase();
+  const user = await User.findOne({ email: cleanEmail });
   if (!user) {
     return res.status(401).json({
       success: false,
