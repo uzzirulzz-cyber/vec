@@ -1,0 +1,6 @@
+{
+  "name": "VectorEngine AI Platform",
+  "description": "Production-ready AI platform connecting to VectorEngine API with chat streaming, vision, image generation, admin controls, and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
