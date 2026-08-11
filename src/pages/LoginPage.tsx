@@ -60,22 +60,30 @@ export const LoginPage: React.FC = () => {
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
             Demo Credentials (1-Click Fill)
           </span>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              type="button"
+              onClick={() => fillQuickAuth('admin@pure.safe', 'creedbixby')}
+              className="px-2 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/50 text-[10px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all truncate"
+            >
+              <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span className="truncate">Pure Safe</span>
+            </button>
             <button
               type="button"
               onClick={() => fillQuickAuth('admin@vectorengine.ai', 'adminpassword123')}
-              className="px-2.5 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-purple-300 hover:bg-purple-900/50 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all"
+              className="px-2 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-purple-300 hover:bg-purple-900/50 text-[10px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all truncate"
             >
-              <ShieldCheck className="w-3 h-3 text-purple-400" />
-              <span>Admin User</span>
+              <ShieldCheck className="w-3 h-3 text-purple-400 shrink-0" />
+              <span className="truncate">Sys Admin</span>
             </button>
             <button
               type="button"
               onClick={() => fillQuickAuth('demo@vectorengine.ai', 'demopassword123')}
-              className="px-2.5 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 hover:bg-blue-900/50 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all"
+              className="px-2 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 hover:bg-blue-900/50 text-[10px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all truncate"
             >
-              <UserCheck className="w-3 h-3 text-blue-400" />
-              <span>Standard User</span>
+              <UserCheck className="w-3 h-3 text-blue-400 shrink-0" />
+              <span className="truncate">Demo User</span>
             </button>
           </div>
         </div>

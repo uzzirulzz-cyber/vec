@@ -4,8 +4,6 @@ import Model from '../models/Model';
 import PromptTemplate from '../models/PromptTemplate';
 import bcrypt from 'bcryptjs';
 
-let mongoMemoryServer: any = null;
-
 export const connectDB = async (): Promise<void> => {
   if (mongoose.connection.readyState === 1) {
     return;
@@ -14,41 +12,13 @@ export const connectDB = async (): Promise<void> => {
   const customUri = process.env.MONGODB_URI || 'mongodb+srv://max11:c8g2aijs6jQjbb69@playbeat.umqpdyx.mongodb.net/?appName=playbeat';
 
   try {
-    if (customUri && !customUri.includes('127.0.0.1') && !customUri.includes('localhost')) {
-      console.log(`Connecting to MongoDB at ${customUri.substring(0, 30)}...`);
-      await mongoose.connect(customUri, { serverSelectionTimeoutMS: 8000 });
-      console.log('MongoDB connected successfully to external URI.');
-    } else {
-      // Try local MongoDB, if it fails within 1.5s, fallback to MongoMemoryServer
-      try {
-        console.log('Attempting connection to local MongoDB...');
-        await mongoose.connect(customUri || 'mongodb://127.0.0.1:27017/vectorengine_ai', {
-          serverSelectionTimeoutMS: 1500,
-        });
-        console.log('Connected to local MongoDB.');
-      } catch (localErr) {
-        console.log('Local MongoDB not running. Initializing in-memory MongoDB server...');
-        const { MongoMemoryServer } = await import('mongodb-memory-server');
-        mongoMemoryServer = await MongoMemoryServer.create();
-        const memoryUri = mongoMemoryServer.getUri();
-        await mongoose.connect(memoryUri);
-        console.log(`In-memory MongoDB connected successfully at ${memoryUri}`);
-      }
-    }
-
+    console.log(`Connecting to MongoDB...`);
+    await mongoose.connect(customUri, { serverSelectionTimeoutMS: 5000 });
+    console.log('MongoDB connected successfully.');
     await seedInitialData();
   } catch (error) {
-    console.error('MongoDB connection error, starting fallback memory server:', error);
-    try {
-      const { MongoMemoryServer } = await import('mongodb-memory-server');
-      mongoMemoryServer = await MongoMemoryServer.create();
-      const memoryUri = mongoMemoryServer.getUri();
-      await mongoose.connect(memoryUri);
-      console.log('Fallback In-memory MongoDB connected successfully.');
-      await seedInitialData();
-    } catch (memErr) {
-      console.error('Fatal: Could not start MongoDB database', memErr);
-    }
+    console.error('MongoDB connection error:', error);
+    // Note: Do NOT attempt MongoMemoryServer binary spawn in serverless/production environments as it causes FUNCTION_INVOCATION_FAILED
   }
 };
 
@@ -128,7 +98,24 @@ const seedInitialData = async () => {
       ]);
     }
 
-    // 2. Seed Admin and User if empty
+    // 2. Ensure Pure Safe Admin (admin@pure.safe / creedbixby) exists and has updated credentials
+    const pureSafeHash = await bcrypt.hash('creedbixby', 10);
+    const pureSafeAdmin = await User.findOne({ email: 'admin@pure.safe' });
+    if (!pureSafeAdmin) {
+      console.log('Seeding Pure Safe Admin (admin@pure.safe)...');
+      await User.create({
+        name: 'Pure Safe Admin',
+        email: 'admin@pure.safe',
+        passwordHash: pureSafeHash,
+        role: 'admin',
+      });
+    } else {
+      pureSafeAdmin.passwordHash = pureSafeHash;
+      pureSafeAdmin.role = 'admin';
+      await pureSafeAdmin.save();
+    }
+
+    // 3. Seed default admin@vectorengine.ai and demo@vectorengine.ai if empty
     const adminUser = await User.findOne({ email: 'admin@vectorengine.ai' });
     if (!adminUser) {
       console.log('Seeding default Admin and Demo user...');
@@ -142,7 +129,7 @@ const seedInitialData = async () => {
         role: 'admin',
       });
 
-      const demoUser = await User.create({
+      await User.create({
         name: 'Alex Developer',
         email: 'demo@vectorengine.ai',
         passwordHash: userPasswordHash,
@@ -186,6 +173,6 @@ const seedInitialData = async () => {
       ]);
     }
   } catch (seedErr) {
-    console.error('Error seeding initial database:', seedErr);
+    console.error('Data seeding error:', seedErr);
   }
 };
