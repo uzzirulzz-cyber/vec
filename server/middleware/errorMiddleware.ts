@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import ApiLog from '../models/ApiLog.js';
+import ApiLog from '../models/ApiLog';
 
 export interface AppError extends Error {
   statusCode?: number;
