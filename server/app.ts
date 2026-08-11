@@ -13,6 +13,9 @@ import { errorMiddleware } from './middleware/errorMiddleware';
 export const createApp = () => {
   const app = express();
 
+  // Trust proxy for Cloud Run, Vercel, and reverse proxies
+  app.set('trust proxy', 1);
+
   // Security Middleware
   app.use(
     helmet({
@@ -34,6 +37,7 @@ export const createApp = () => {
     max: 300, // Limit each IP to 300 requests per window
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
     message: {
       success: false,
       error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests, please try again later.' },
