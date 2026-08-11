@@ -18,9 +18,24 @@ const getHeaders = (isJson = true) => {
 };
 
 const handleResponse = async (res: Response) => {
-  const data = await res.json();
+  const contentType = res.headers.get('content-type') || '';
+  let data: any;
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (e) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Invalid JSON response (${res.status}): ${text.substring(0, 100)}`);
+    }
+  } else {
+    const text = await res.text().catch(() => '');
+    const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().substring(0, 150);
+    throw new Error(cleanText || `Server returned non-JSON response (${res.status} ${res.statusText})`);
+  }
+
   if (!res.ok || !data.success) {
-    throw new Error(data.error?.message || 'API Request failed');
+    throw new Error(data.error?.message || `API Request failed (${res.status})`);
   }
   return data.data;
 };
@@ -28,8 +43,15 @@ const handleResponse = async (res: Response) => {
 export const api = {
   // Health
   checkHealth: async () => {
-    const res = await fetch(`${API_BASE}/health`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      if (res.headers.get('content-type')?.includes('application/json')) {
+        return await res.json();
+      }
+      return { status: 'error', message: `Server returned status ${res.status}` };
+    } catch (err: any) {
+      return { status: 'offline', message: err.message };
+    }
   },
 
   // Auth
@@ -130,8 +152,14 @@ export const api = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Streaming request failed');
+        if (response.headers.get('content-type')?.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error?.message || 'Streaming request failed');
+        } else {
+          const text = await response.text().catch(() => '');
+          const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().substring(0, 150);
+          throw new Error(cleanText || `Streaming request failed with status ${response.status}`);
+        }
       }
 
       const reader = response.body?.getReader();

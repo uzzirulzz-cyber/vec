@@ -72,6 +72,14 @@ export const createApp = () => {
   app.use('/api/prompts', promptRoutes);
   app.use('/api/admin', adminRoutes);
 
+  // 404 Handler for /api/* routes
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: `API route ${req.originalUrl} not found` },
+    });
+  });
+
   // Error handling middleware
   app.use(errorMiddleware);
 
