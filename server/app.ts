@@ -37,7 +37,7 @@ export const createApp = () => {
     max: 300, // Limit each IP to 300 requests per window
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { xForwardedForHeader: false },
+    validate: false,
     message: {
       success: false,
       error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests, please try again later.' },

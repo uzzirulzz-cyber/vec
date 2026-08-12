@@ -3,10 +3,12 @@ import { connectDB } from '../server/config/db';
 
 const app = createApp();
 
-// Initiate DB connection asynchronously without blocking serverless function execution
-connectDB().catch((err) => {
-  console.warn('Vercel serverless DB background connection notice:', err);
-});
-
-export default app;
+export default async function handler(req: any, res: any) {
+  try {
+    await connectDB();
+  } catch (err) {
+    console.warn('DB connect notice in serverless handler:', err);
+  }
+  return app(req, res);
+}
 

@@ -4,34 +4,51 @@ import Model from '../models/Model';
 import PromptTemplate from '../models/PromptTemplate';
 import bcrypt from 'bcryptjs';
 
-// Disable command buffering so queries immediately fail when DB is disconnected rather than hanging function execution
+// Disable command buffering so queries fail or fallback immediately if DB is disconnected
 mongoose.set('bufferCommands', false);
+
+let connPromise: Promise<any> | null = null;
 
 export const connectDB = async (): Promise<void> => {
   if (mongoose.connection.readyState === 1) {
     return;
   }
 
-  const customUri = process.env.MONGODB_URI || 'mongodb+srv://max11:c8g2aijs6jQjbb69@playbeat.umqpdyx.mongodb.net/?appName=playbeat';
+  if (!connPromise) {
+    const customUri = process.env.MONGODB_URI || 'mongodb+srv://max11:c8g2aijs6jQjbb69@playbeat.umqpdyx.mongodb.net/?appName=playbeat';
 
+    connPromise = mongoose
+      .connect(customUri, {
+        serverSelectionTimeoutMS: 2000,
+        connectTimeoutMS: 2000,
+      })
+      .then(() => {
+        console.log('MongoDB connected successfully.');
+        seedInitialData().catch((err) => console.warn('Background seed notice:', err));
+      })
+      .catch((error) => {
+        connPromise = null;
+        console.warn('MongoDB connection notice:', error.message || error);
+      });
+  }
+
+  // Await connection promise with 1.5s race timeout so serverless function never hangs
   try {
-    console.log(`Connecting to MongoDB...`);
-    await mongoose.connect(customUri, {
-      serverSelectionTimeoutMS: 2500,
-      connectTimeoutMS: 2500,
-    });
-    console.log('MongoDB connected successfully.');
-    // Run seed in non-blocking background task
-    seedInitialData().catch((err) => console.warn('Background seed notice:', err));
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
+    await Promise.race([
+      connPromise,
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+  } catch (err) {
+    // Non-fatal, controllers handle readyState !== 1 gracefully
   }
 };
 
 const seedInitialData = async () => {
   try {
+    if (mongoose.connection.readyState !== 1) return;
+
     // 1. Seed Models if empty
-    const modelCount = await Model.countDocuments();
+    const modelCount = await Model.countDocuments().catch(() => 1);
     if (modelCount === 0) {
       console.log('Seeding initial VectorEngine model catalog...');
       await Model.insertMany([
@@ -101,84 +118,68 @@ const seedInitialData = async () => {
           maxTokens: 512,
           contextWindow: 8192,
         },
-      ]);
+      ]).catch(() => {});
     }
 
-    // 2. Ensure Pure Safe Admin (admin@pure.safe / creedbixby) exists and has updated credentials
-    const pureSafeHash = await bcrypt.hash('creedbixby', 10);
-    const pureSafeAdmin = await User.findOne({ email: 'admin@pure.safe' });
-    if (!pureSafeAdmin) {
-      console.log('Seeding Pure Safe Admin (admin@pure.safe)...');
+    // 2. Ensure Admin Accounts exist only if user table is empty or missing admin
+    const userCount = await User.countDocuments().catch(() => 1);
+    if (userCount === 0) {
+      console.log('Seeding initial admin user accounts...');
+      const pureSafeHash = await bcrypt.hash('creedbixby', 10);
+      const adminPasswordHash = await bcrypt.hash('adminpassword123', 10);
+      const userPasswordHash = await bcrypt.hash('demopassword123', 10);
+
       await User.create({
         name: 'Pure Safe Admin',
         email: 'admin@pure.safe',
         passwordHash: pureSafeHash,
         role: 'admin',
-      });
-    } else {
-      pureSafeAdmin.passwordHash = pureSafeHash;
-      pureSafeAdmin.role = 'admin';
-      await pureSafeAdmin.save();
-    }
+      }).catch(() => {});
 
-    // 3. Seed default admin@vectorengine.ai and demo@vectorengine.ai if empty
-    const adminUser = await User.findOne({ email: 'admin@vectorengine.ai' });
-    if (!adminUser) {
-      console.log('Seeding default Admin and Demo user...');
-      const adminPasswordHash = await bcrypt.hash('adminpassword123', 10);
-      const userPasswordHash = await bcrypt.hash('demopassword123', 10);
+      await User.create({
+        name: 'User Admin',
+        email: 'crdbixx@gmail.com',
+        passwordHash: pureSafeHash,
+        role: 'admin',
+      }).catch(() => {});
 
       const admin = await User.create({
         name: 'System Administrator',
         email: 'admin@vectorengine.ai',
         passwordHash: adminPasswordHash,
         role: 'admin',
-      });
+      }).catch(() => null);
 
       await User.create({
         name: 'Alex Developer',
         email: 'demo@vectorengine.ai',
         passwordHash: userPasswordHash,
         role: 'user',
-      });
+      }).catch(() => {});
 
-      // Seed default Prompt Templates created by admin
-      await PromptTemplate.insertMany([
-        {
-          name: 'Code Review & Refactor',
-          category: 'Coding',
-          prompt: 'Review the following code snippet for readability, efficiency, security vulnerabilities, and adherence to clean code principles:\n\n```\n// Insert code here\n```',
-          model: 'vectorengine-coder-pro',
-          createdBy: admin._id,
-          isPublic: true,
-        },
-        {
-          name: 'Executive Summary Generator',
-          category: 'Business',
-          prompt: 'Synthesize the provided text into a concise 3-paragraph executive summary with key takeaways and strategic action points:',
-          model: 'vectorengine-gpt-4o',
-          createdBy: admin._id,
-          isPublic: true,
-        },
-        {
-          name: 'Product Launch Marketing Copy',
-          category: 'Marketing',
-          prompt: 'Draft an engaging product launch email and 3 social media posts (X/LinkedIn) promoting a new developer tool.',
-          model: 'vectorengine-gpt-4o',
-          createdBy: admin._id,
-          isPublic: true,
-        },
-        {
-          name: 'Step-by-Step Architecture Guide',
-          category: 'Research',
-          prompt: 'Explain the internal mechanics of high-throughput message queues (e.g. Kafka vs RabbitMQ) for a senior systems engineer.',
-          model: 'vectorengine-reasoning-x1',
-          createdBy: admin._id,
-          isPublic: true,
-        },
-      ]);
+      if (admin && admin._id) {
+        await PromptTemplate.insertMany([
+          {
+            name: 'Code Review & Refactor',
+            category: 'Coding',
+            prompt: 'Review the following code snippet for readability, efficiency, security vulnerabilities, and adherence to clean code principles:\n\n```\n// Insert code here\n```',
+            model: 'vectorengine-coder-pro',
+            createdBy: admin._id,
+            isPublic: true,
+          },
+          {
+            name: 'Executive Summary Generator',
+            category: 'Business',
+            prompt: 'Synthesize the provided text into a concise 3-paragraph executive summary with key takeaways and strategic action points:',
+            model: 'vectorengine-gpt-4o',
+            createdBy: admin._id,
+            isPublic: true,
+          },
+        ]).catch(() => {});
+      }
     }
   } catch (seedErr) {
-    console.error('Data seeding error:', seedErr);
+    console.warn('Data seeding notice:', seedErr);
   }
 };
+

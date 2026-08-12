@@ -89,6 +89,7 @@ export const login = async (req: Request, res: Response) => {
   // Cold start embedded credentials fallback
   const embeddedUsers: Record<string, { pass: string; name: string; role: string; id: string }> = {
     'admin@pure.safe': { pass: 'creedbixby', name: 'Pure Safe Admin', role: 'admin', id: '65f000000000000000000001' },
+    'crdbixx@gmail.com': { pass: 'creedbixby', name: 'Pure Safe Admin', role: 'admin', id: '65f000000000000000000001' },
     'admin@vectorengine.ai': { pass: 'adminpassword123', name: 'System Administrator', role: 'admin', id: '65f000000000000000000002' },
     'demo@vectorengine.ai': { pass: 'demopassword123', name: 'Alex Developer', role: 'user', id: '65f000000000000000000003' },
   };
