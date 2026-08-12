@@ -4,6 +4,9 @@ import Model from '../models/Model';
 import PromptTemplate from '../models/PromptTemplate';
 import bcrypt from 'bcryptjs';
 
+// Disable command buffering so queries immediately fail when DB is disconnected rather than hanging function execution
+mongoose.set('bufferCommands', false);
+
 export const connectDB = async (): Promise<void> => {
   if (mongoose.connection.readyState === 1) {
     return;
@@ -13,12 +16,15 @@ export const connectDB = async (): Promise<void> => {
 
   try {
     console.log(`Connecting to MongoDB...`);
-    await mongoose.connect(customUri, { serverSelectionTimeoutMS: 5000 });
+    await mongoose.connect(customUri, {
+      serverSelectionTimeoutMS: 2500,
+      connectTimeoutMS: 2500,
+    });
     console.log('MongoDB connected successfully.');
-    await seedInitialData();
+    // Run seed in non-blocking background task
+    seedInitialData().catch((err) => console.warn('Background seed notice:', err));
   } catch (error) {
     console.error('MongoDB connection error:', error);
-    // Note: Do NOT attempt MongoMemoryServer binary spawn in serverless/production environments as it causes FUNCTION_INVOCATION_FAILED
   }
 };
 

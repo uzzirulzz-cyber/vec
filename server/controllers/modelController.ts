@@ -1,12 +1,93 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import Model from '../models/Model';
 import vectorEngineService from '../services/vectorEngineService';
 import { AuthRequest } from '../middleware/authMiddleware';
 
+const defaultModels = [
+  {
+    name: 'VectorEngine GPT-4o',
+    modelId: 'vectorengine-gpt-4o',
+    provider: 'VectorEngine',
+    type: 'chat',
+    capabilities: ['chat', 'reasoning', 'coding'],
+    description: 'High-intelligence flagship model for complex chat, reasoning, and multi-turn coding tasks.',
+    enabled: true,
+    maxTokens: 4096,
+    contextWindow: 128000,
+  },
+  {
+    name: 'VectorEngine Coder Pro',
+    modelId: 'vectorengine-coder-pro',
+    provider: 'VectorEngine',
+    type: 'coding',
+    capabilities: ['chat', 'coding', 'reasoning'],
+    description: 'Specialized low-latency model optimized for code generation, code review, and architecture debugging.',
+    enabled: true,
+    maxTokens: 8192,
+    contextWindow: 128000,
+  },
+  {
+    name: 'VectorEngine Reasoning X1',
+    modelId: 'vectorengine-reasoning-x1',
+    provider: 'VectorEngine',
+    type: 'reasoning',
+    capabilities: ['chat', 'reasoning'],
+    description: 'Deep chain-of-thought model engineered for logic puzzles, mathematical proofs, and analytical problems.',
+    enabled: true,
+    maxTokens: 4096,
+    contextWindow: 64000,
+  },
+  {
+    name: 'VectorEngine Vision Pro',
+    modelId: 'vectorengine-vision-v1',
+    provider: 'VectorEngine',
+    type: 'vision',
+    capabilities: ['chat', 'vision'],
+    description: 'Multimodal vision model capable of analyzing diagrams, code screenshots, UI mockups, and complex images.',
+    enabled: true,
+    maxTokens: 4096,
+    contextWindow: 128000,
+  },
+  {
+    name: 'VectorEngine Imagine 3.0',
+    modelId: 'vectorengine-dall-e-3',
+    provider: 'VectorEngine',
+    type: 'image',
+    capabilities: ['image'],
+    description: 'Next-gen text-to-image synthesis model generating ultra-photorealistic and creative artistic visual graphics.',
+    enabled: true,
+    maxTokens: 1,
+    contextWindow: 2000,
+  },
+  {
+    name: 'VectorEngine Embed Large',
+    modelId: 'vectorengine-embed-large',
+    provider: 'VectorEngine',
+    type: 'embeddings',
+    capabilities: ['embeddings'],
+    description: 'High-density 1536-dimensional text embeddings model for RAG, semantic search, and document retrieval.',
+    enabled: true,
+    maxTokens: 512,
+    contextWindow: 8192,
+  },
+];
+
 export const getModels = async (req: AuthRequest, res: Response) => {
-  const isAdmin = req.user?.role === 'admin';
-  const query = isAdmin ? {} : { enabled: true };
-  const models = await Model.find(query).sort({ name: 1 });
+  let models: any[] = [];
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const isAdmin = req.user?.role === 'admin';
+      const query = isAdmin ? {} : { enabled: true };
+      models = await Model.find(query).sort({ name: 1 });
+    } catch (err) {
+      console.warn('Error fetching models from DB:', err);
+    }
+  }
+
+  if (!models || models.length === 0) {
+    models = defaultModels;
+  }
 
   return res.status(200).json({
     success: true,

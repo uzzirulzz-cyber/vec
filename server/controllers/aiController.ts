@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/authMiddleware';
 import vectorEngineService from '../services/vectorEngineService';
 import Model from '../models/Model';
@@ -17,7 +18,15 @@ export const chatCompletion = async (req: AuthRequest, res: Response) => {
   }
 
   const modelId = requestedModelId || process.env.VECTORENGINE_DEFAULT_MODEL || 'vectorengine-gpt-4o';
-  const modelDoc = await Model.findOne({ modelId });
+  
+  let modelDoc = null;
+  if (mongoose.connection.readyState === 1) {
+    try {
+      modelDoc = await Model.findOne({ modelId });
+    } catch (err) {
+      console.warn('DB lookup error for model:', err);
+    }
+  }
 
   if (modelDoc && !modelDoc.enabled) {
     return res.status(400).json({
@@ -44,30 +53,31 @@ export const chatCompletion = async (req: AuthRequest, res: Response) => {
     const responseTime = Date.now() - startTime;
     const userId = req.user?.id || 'anonymous';
 
-    // Track Usage
-    await Usage.create({
-      userId,
-      model: modelId,
-      endpoint: '/api/ai/chat',
-      tokens: {
-        promptTokens: result.promptTokens,
-        completionTokens: result.completionTokens,
-        totalTokens: result.totalTokens,
-      },
-      requestStatus: 'success',
-      responseTime,
-    });
+    if (mongoose.connection.readyState === 1) {
+      // Track Usage & ApiLog in non-blocking background
+      Usage.create({
+        userId,
+        model: modelId,
+        endpoint: '/api/ai/chat',
+        tokens: {
+          promptTokens: result.promptTokens,
+          completionTokens: result.completionTokens,
+          totalTokens: result.totalTokens,
+        },
+        requestStatus: 'success',
+        responseTime,
+      }).catch(() => {});
 
-    // Track ApiLog
-    await ApiLog.create({
-      userId,
-      endpoint: '/api/ai/chat',
-      model: modelId,
-      statusCode: 200,
-      responseTime,
-      requestId: `req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      ipAddress: req.ip,
-    });
+      ApiLog.create({
+        userId,
+        endpoint: '/api/ai/chat',
+        model: modelId,
+        statusCode: 200,
+        responseTime,
+        requestId: `req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        ipAddress: req.ip,
+      }).catch(() => {});
+    }
 
     return res.status(200).json({
       success: true,
@@ -87,15 +97,17 @@ export const chatCompletion = async (req: AuthRequest, res: Response) => {
     });
   } catch (err: any) {
     const responseTime = Date.now() - startTime;
-    await ApiLog.create({
-      userId: req.user?.id,
-      endpoint: '/api/ai/chat',
-      model: modelId,
-      statusCode: 500,
-      responseTime,
-      requestId: `req_${Date.now()}`,
-      error: err.message,
-    });
+    if (mongoose.connection.readyState === 1) {
+      ApiLog.create({
+        userId: req.user?.id,
+        endpoint: '/api/ai/chat',
+        model: modelId,
+        statusCode: 500,
+        responseTime,
+        requestId: `req_${Date.now()}`,
+        error: err.message,
+      }).catch(() => {});
+    }
 
     return res.status(500).json({
       success: false,
@@ -116,7 +128,13 @@ export const streamChatCompletion = async (req: AuthRequest, res: Response) => {
   }
 
   const modelId = requestedModelId || process.env.VECTORENGINE_DEFAULT_MODEL || 'vectorengine-gpt-4o';
-  const modelDoc = await Model.findOne({ modelId });
+  
+  let modelDoc = null;
+  if (mongoose.connection.readyState === 1) {
+    try {
+      modelDoc = await Model.findOne({ modelId });
+    } catch (err) {}
+  }
 
   if (modelDoc && !modelDoc.enabled) {
     return res.status(400).json({
@@ -145,28 +163,30 @@ export const streamChatCompletion = async (req: AuthRequest, res: Response) => {
     const responseTime = Date.now() - startTime;
     const userId = req.user?.id || 'anonymous';
 
-    await Usage.create({
-      userId,
-      model: modelId,
-      endpoint: '/api/ai/chat/stream',
-      tokens: {
-        promptTokens: result.promptTokens,
-        completionTokens: result.completionTokens,
-        totalTokens: result.totalTokens,
-      },
-      requestStatus: 'success',
-      responseTime,
-    });
+    if (mongoose.connection.readyState === 1) {
+      Usage.create({
+        userId,
+        model: modelId,
+        endpoint: '/api/ai/chat/stream',
+        tokens: {
+          promptTokens: result.promptTokens,
+          completionTokens: result.completionTokens,
+          totalTokens: result.totalTokens,
+        },
+        requestStatus: 'success',
+        responseTime,
+      }).catch(() => {});
 
-    await ApiLog.create({
-      userId,
-      endpoint: '/api/ai/chat/stream',
-      model: modelId,
-      statusCode: 200,
-      responseTime,
-      requestId: `stream_${Date.now()}`,
-      ipAddress: req.ip,
-    });
+      ApiLog.create({
+        userId,
+        endpoint: '/api/ai/chat/stream',
+        model: modelId,
+        statusCode: 200,
+        responseTime,
+        requestId: `stream_${Date.now()}`,
+        ipAddress: req.ip,
+      }).catch(() => {});
+    }
   } catch (err: any) {
     res.write(`data: ${JSON.stringify({ error: err.message || 'Stream processing failed' })}\n\n`);
     res.write('data: [DONE]\n\n');
@@ -186,7 +206,12 @@ export const generateImage = async (req: AuthRequest, res: Response) => {
   }
 
   const modelId = requestedModelId || 'vectorengine-dall-e-3';
-  const modelDoc = await Model.findOne({ modelId });
+  let modelDoc = null;
+  if (mongoose.connection.readyState === 1) {
+    try {
+      modelDoc = await Model.findOne({ modelId });
+    } catch (err) {}
+  }
 
   if (modelDoc && !modelDoc.enabled) {
     return res.status(400).json({
@@ -212,23 +237,25 @@ export const generateImage = async (req: AuthRequest, res: Response) => {
     const responseTime = Date.now() - startTime;
     const userId = req.user?.id || 'anonymous';
 
-    await Usage.create({
-      userId,
-      model: modelId,
-      endpoint: '/api/ai/image',
-      tokens: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-      requestStatus: 'success',
-      responseTime,
-    });
+    if (mongoose.connection.readyState === 1) {
+      Usage.create({
+        userId,
+        model: modelId,
+        endpoint: '/api/ai/image',
+        tokens: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        requestStatus: 'success',
+        responseTime,
+      }).catch(() => {});
 
-    await ApiLog.create({
-      userId,
-      endpoint: '/api/ai/image',
-      model: modelId,
-      statusCode: 200,
-      responseTime,
-      requestId: `img_${Date.now()}`,
-    });
+      ApiLog.create({
+        userId,
+        endpoint: '/api/ai/image',
+        model: modelId,
+        statusCode: 200,
+        responseTime,
+        requestId: `img_${Date.now()}`,
+      }).catch(() => {});
+    }
 
     return res.status(200).json({
       success: true,
@@ -261,7 +288,13 @@ export const analyzeVision = async (req: AuthRequest, res: Response) => {
     });
   }
 
-  const modelDoc = await Model.findOne({ modelId });
+  let modelDoc = null;
+  if (mongoose.connection.readyState === 1) {
+    try {
+      modelDoc = await Model.findOne({ modelId });
+    } catch (err) {}
+  }
+
   if (modelDoc && !modelDoc.capabilities.includes('vision')) {
     return res.status(400).json({
       success: false,
@@ -280,23 +313,25 @@ export const analyzeVision = async (req: AuthRequest, res: Response) => {
     const responseTime = Date.now() - startTime;
     const userId = req.user?.id || 'anonymous';
 
-    await Usage.create({
-      userId,
-      model: modelId,
-      endpoint: '/api/ai/vision',
-      tokens: { promptTokens: 200, completionTokens: 300, totalTokens: 500 },
-      requestStatus: 'success',
-      responseTime,
-    });
+    if (mongoose.connection.readyState === 1) {
+      Usage.create({
+        userId,
+        model: modelId,
+        endpoint: '/api/ai/vision',
+        tokens: { promptTokens: 200, completionTokens: 300, totalTokens: 500 },
+        requestStatus: 'success',
+        responseTime,
+      }).catch(() => {});
 
-    await ApiLog.create({
-      userId,
-      endpoint: '/api/ai/vision',
-      model: modelId,
-      statusCode: 200,
-      responseTime,
-      requestId: `vis_${Date.now()}`,
-    });
+      ApiLog.create({
+        userId,
+        endpoint: '/api/ai/vision',
+        model: modelId,
+        statusCode: 200,
+        responseTime,
+        requestId: `vis_${Date.now()}`,
+      }).catch(() => {});
+    }
 
     return res.status(200).json({
       success: true,
